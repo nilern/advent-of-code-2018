@@ -40,8 +40,11 @@ signature TARDY_BANKERS_QUEUE_CONFIG = sig
 end
 
 functor TardyBankersQueue (Config : TARDY_BANKERS_QUEUE_CONFIG) :> sig
-    include MONO_QUEUE
+    include MONO_QUEUE where
+        type item = Config.item
 
+    val length: queue -> int
+    val pushFront: queue * item -> queue
     val tryPopBack: queue -> queue * item option
 end = struct
     type item = Config.item
@@ -50,7 +53,11 @@ end = struct
                  , back: item list
                  , length: int }
 
+    val length: queue -> int = #length
+
     val empty = {front = [], back = [], length = 0}
+
+    fun pushFront ({front, back, length}, x) = {front = x :: front, back, length = length + 1}
 
     fun pushBack ({front, back, length}, x) = {front, back = x :: back, length = length + 1}
 
@@ -61,6 +68,7 @@ end = struct
                      if n > 0
                      then loop (x :: front) back' (n - 1)
                      else {front, back, length}
+                   | loop _ _ _ = raise Fail "unreachable"
                  val transferCount = if length > Config.backRetainCount
                                      then length - Config.backRetainCount
                                      else length
@@ -85,6 +93,54 @@ structure Marbles :> sig
 end = struct
     type player = int
     type marble = int
+
+    structure Circle :> sig
+        type t
+
+        val initial: t
+        val turn: t -> marble -> t * marble option
+    end = struct
+        structure Impl = TardyBankersQueue(struct
+            type item = marble
+            val backRetainCount = 7
+        end)
+
+        type t = Impl.queue
+
+        val initial = Impl.pushBack (Impl.empty, 0)
+
+        fun reEnqueue queue =
+            case Impl.popFront queue
+            of (queue, SOME x) => Impl.pushBack (queue, x)
+             | (queue, NONE) => queue
+
+        fun insert circle marble =
+            let val circle = reEnqueue (reEnqueue circle)
+            in Impl.pushFront (circle, marble)
+            end
+
+        fun revReEnqueue queue =
+            case Impl.tryPopBack queue
+            of (queue, SOME x) => Impl.pushFront (queue, x)
+             | (queue, NONE) => queue
+
+        fun acquire circle =
+            let fun loop circle n =
+                    if n > 0
+                    then loop (revReEnqueue circle) (n - 1)
+                    else circle
+            in case Impl.tryPopBack (loop circle 6)
+               of (circle, SOME prize) => (circle, prize)
+                | _ => raise Fail "unreachable"
+            end
+
+        fun turn circle marbleToInsert =
+            if Int.rem (marbleToInsert, 23) <> 0
+            then (insert circle marbleToInsert, NONE)
+            else let val (circle', prizeMarble) = acquire circle
+                 in (circle', SOME prizeMarble)
+                 end
+    end
 
     structure Circle :> sig
         type t
