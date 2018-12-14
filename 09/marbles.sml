@@ -25,6 +25,61 @@ end = struct
         end
 end
 
+signature MONO_QUEUE = sig
+    type queue
+    type item
+
+    val empty: queue
+    val pushBack: queue * item -> queue
+    val popFront: queue -> queue * item option
+end
+
+signature TARDY_BANKERS_QUEUE_CONFIG = sig
+    type item
+    val backRetainCount: int
+end
+
+functor TardyBankersQueue (Config : TARDY_BANKERS_QUEUE_CONFIG) :> sig
+    include MONO_QUEUE
+
+    val tryPopBack: queue -> queue * item option
+end = struct
+    type item = Config.item
+
+    type queue = { front: item list
+                 , back: item list
+                 , length: int }
+
+    val empty = {front = [], back = [], length = 0}
+
+    fun pushBack ({front, back, length}, x) = {front, back = x :: back, length = length + 1}
+
+    fun ensureFront (queue as {front, back, length}) =
+        if not (List.null front)
+        then queue
+        else let fun loop front (back as x :: back') n =
+                     if n > 0
+                     then loop (x :: front) back' (n - 1)
+                     else {front, back, length}
+                 val transferCount = if length > Config.backRetainCount
+                                     then length - Config.backRetainCount
+                                     else length
+             in loop front back transferCount
+             end
+
+    fun popFront queue =
+        let val {front, back, length} = ensureFront queue
+        in case front
+           of [] => (queue, NONE)
+            | x :: front' => ({front = front', back, length = length - 1}, SOME x)
+        end
+
+    val tryPopBack =
+        fn {front, back = x :: back', length} =>
+            ({front, back = back', length = length - 1}, SOME x)
+         | queue => (queue, NONE)
+end
+
 structure Marbles :> sig
     val main: string list -> unit
 end = struct
