@@ -1,25 +1,31 @@
-structure MarblesGame :> sig
+signature CIRCLE = sig
+    type marble
+    type t
+
+    val initial: t
+    val turn: marble * t -> t * marble option
+end
+
+signature MARBLES_GAME = sig
     type marble = int
     type t
 
     val initial: int -> t
     val turn: marble * t -> t
     val points: t -> int vector
-end = struct
+end
+
+structure MarblesGame :> MARBLES_GAME = struct
     type player = int
     type marble = int
 
-    structure Circle :> sig
-        type t
-
-        val initial: t
-        val turn: marble * t -> t * marble option
-    end = struct
+    structure Circle :> CIRCLE where type marble = marble = struct
         structure Impl = BankersDeque(struct
             type item = marble
             val proportion = 1
         end)
 
+        type marble = marble
         type t = Impl.queue
 
         val initial = Impl.pushBack (Impl.empty, 0)
