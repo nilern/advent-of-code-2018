@@ -1,16 +1,57 @@
+signature RANGEABLE = sig
+    type index
+
+    val compare: index * index -> order
+
+    val zero: index
+    val inc: index -> index
+end
+
+signature RANGE = sig
+    type index
+    type range = {start: index, stop: index}
+
+    val to: index -> range
+
+    val foldl: (index * 'a -> 'a) -> 'a -> range -> 'a
+end
+
+functor Range(Index: RANGEABLE) :> RANGE where type index = Index.index = struct
+    type index = Index.index
+    type range = { start: index
+                 , stop: index }
+
+    fun to stop = {start = Index.zero, stop}
+
+    fun foldl f v {start, stop} =
+        let fun loop i v =
+                case Index.compare (i, stop)
+                of LESS => loop (Index.inc i) (f (i, v))
+                 | _ => v
+        in loop start v
+        end
+end
+
+structure IntRange = Range(struct
+    type index = Int.int
+
+    val compare = Int.compare
+
+    val zero = 0
+    val inc = fn n => n + 1
+end)
+
 structure Util :> sig
     val split: int * 'a list -> 'a list * 'a list
 
     val maxi: ('a * 'a -> order) -> 'a vector -> (int option * 'a) option
 end = struct
     fun split (n, xs) =
-        let fun doSplit (n, front, back) =
-                if n > 0
-                then case back
-                     of x :: back' => doSplit (n - 1, x :: front, back')
-                      | [] => raise Subscript
-                else (List.rev front, back)
-        in doSplit (n, [], xs)
+        let val step =
+                fn (_, (front, x :: back')) => (x :: front, back')
+                 | _ => raise Subscript
+            val (front, back) = IntRange.foldl step ([], xs) (IntRange.to n)
+        in (List.rev front, back)
         end
 
     fun maxi compare coll =
@@ -139,7 +180,7 @@ end = struct
         type t
 
         val initial: t
-        val turn: t -> marble -> t * marble option
+        val turn: marble * t -> t * marble option
     end = struct
         structure Impl = BankersDeque(struct
             type item = marble
@@ -166,16 +207,11 @@ end = struct
              | NONE => queue
 
         fun acquire circle =
-            let fun loop circle n =
-                    if n > 0
-                    then loop (revReEnqueue circle) (n - 1)
-                    else circle
-            in case Impl.popBack (loop circle 6)
-               of SOME (circle, prize) => (circle, prize)
-                | NONE => raise Fail "unreachable"
-            end
+            case Impl.popBack (IntRange.foldl (fn (_, acc) => revReEnqueue acc) circle (IntRange.to 6))
+            of SOME (circle, prize) => (circle, prize)
+             | NONE => raise Fail "unreachable"
 
-        fun turn circle marbleToInsert =
+        fun turn (marbleToInsert, circle) =
             if Int.rem (marbleToInsert, 23) <> 0
             then (insert circle marbleToInsert, NONE)
             else let val (circle', prizeMarble) = acquire circle
@@ -186,21 +222,18 @@ end = struct
     structure GameState :> sig
         type t = { points: int vector
                  , currentPlayer: player
-                 , marbleToInsert: marble
                  , circle: Circle.t }
 
         val initial: int -> int -> t
-        val turn: t -> t
+        val turn: marble * t -> t
     end = struct
         type t = { points: int vector
                  , currentPlayer: player
-                 , marbleToInsert: marble
                  , circle: Circle.t }
 
         fun initial playerCount marbleCount =
             { points = Vector.tabulate (playerCount, fn _ => 0)
             , currentPlayer = 0
-            , marbleToInsert = 1
             , circle = Circle.initial }
 
         fun nextPlayer playerCount currentPlayer =
@@ -210,8 +243,8 @@ end = struct
                else 0
             end
 
-        fun turn {points, currentPlayer, marbleToInsert, circle} =
-            case Circle.turn circle marbleToInsert
+        fun turn (marbleToInsert, {points, currentPlayer, circle}) =
+            case Circle.turn (marbleToInsert, circle)
             of (circle', SOME prizeMarble) =>
                 { points = let val currentPlayerPoints = Vector.sub (points, currentPlayer)
                                val currentPlayerPoints' = currentPlayerPoints
@@ -220,24 +253,18 @@ end = struct
                            in Vector.update (points, currentPlayer, currentPlayerPoints')
                            end
                 , currentPlayer = nextPlayer (Vector.length points) currentPlayer
-                , marbleToInsert = marbleToInsert + 1
                 , circle = circle' }
              | (circle', NONE) =>
                { points = points
                , currentPlayer = nextPlayer (Vector.length points) currentPlayer
-               , marbleToInsert = marbleToInsert + 1
                , circle = circle' }
     end
 
     fun play playerCount marbleCount =
         let val initialState = GameState.initial playerCount marbleCount
-            fun gameLoop state =
-                if #marbleToInsert state > marbleCount
-                then state
-                else gameLoop (GameState.turn state)
         in if playerCount < 1
            then initialState
-           else gameLoop (initialState)
+           else IntRange.foldl GameState.turn initialState {start = 1, stop = marbleCount + 1}
         end
 
     fun printErr s = TextIO.output (TextIO.stdErr, s)
