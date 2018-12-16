@@ -14,9 +14,7 @@ end = struct
         printErr ("Error: expected 2 arguments, got " ^ Int.toString argc ^ ".\n")
 
     val main =
-        fn [] => printArgCountError 0
-         | [_] => printArgCountError 1
-         | [playerCountStr, marbleCountStr] =>
+        fn [playerCountStr, marbleCountStr] =>
             (case Int.fromString playerCountStr
              of SOME playerCount =>
                  (case Int.fromString marbleCountStr

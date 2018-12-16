@@ -1,3 +1,15 @@
+structure Fn :> sig
+    val const: 'a -> 'b -> 'a
+end = struct
+    fun const c _ = c
+end
+
+structure Pair :> sig
+    val map: ('a -> 'c) -> 'a * 'b -> 'c * 'b
+end = struct
+    fun map f (l, r) = (f l, r)
+end
+
 signature RANGEABLE = sig
     type index
 
@@ -47,10 +59,10 @@ structure Util :> sig
     val maxi: ('a * 'a -> order) -> 'a vector -> (int option * 'a) option
 end = struct
     fun split (n, xs) =
-        let val step =
-                fn (_, (front, x :: back')) => (x :: front, back')
+        let val move =
+                fn (front, x :: back') => (x :: front, back')
                  | _ => raise Subscript
-            val (front, back) = IntRange.foldl step ([], xs) (IntRange.to n)
+            val (front, back) = IntRange.foldl (move o #2) ([], xs) (IntRange.to n)
         in (List.rev front, back)
         end
 
@@ -162,12 +174,12 @@ functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> MONO_DEQUE where type ite
     fun popFront {front, back} =
         case LL.popFront front
         of SOME (front', x) => SOME (balance {front = front', back}, x)
-         | NONE => Option.map (fn (_, x) => (empty, x)) (LL.popFront back)
+         | NONE => Option.map (Pair.map (Fn.const empty)) (LL.popFront back)
 
     fun popBack {front, back} =
         case LL.popFront back
         of SOME (back', x) => SOME (balance {front, back = back'}, x)
-         | NONE => Option.map (fn (_, x) => (empty, x)) (LL.popFront front)
+         | NONE => Option.map (Pair.map (Fn.const empty)) (LL.popFront front)
 end
 
 structure GameState :> sig
@@ -212,7 +224,7 @@ end = struct
              | NONE => queue
 
         fun acquire circle =
-            case Impl.popBack (IntRange.foldl (fn (_, acc) => revReEnqueue acc) circle (IntRange.to 6))
+            case Impl.popBack (IntRange.foldl (revReEnqueue o #2) circle (IntRange.to 6))
             of SOME (circle, prize) => (circle, prize)
              | NONE => raise Fail "unreachable"
 
@@ -229,7 +241,7 @@ end = struct
              , circle: Circle.t }
 
     fun initial playerCount =
-        { points = Vector.tabulate (playerCount, fn _ => 0)
+        { points = Vector.tabulate (playerCount, Fn.const 0)
         , currentPlayer = 0
         , circle = Circle.initial }
 
