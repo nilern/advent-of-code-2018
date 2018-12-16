@@ -1,16 +1,16 @@
 structure Util :> sig
-    val split: 'a list * int -> ('a list * 'a list) option
+    val split: int * 'a list -> 'a list * 'a list
 
     val maxi: ('a * 'a -> order) -> 'a vector -> (int option * 'a) option
 end = struct
-    fun split (xs, n) =
-        let fun loop ls rs n =
-                if n = 0
-                then SOME (List.rev ls, rs)
-                else case rs
-                     of r :: rs' => loop (r :: ls) rs' (n - 1)
-                      | [] => NONE
-        in loop [] xs n
+    fun split (n, xs) =
+        let fun doSplit (n, front, back) =
+                if n > 0
+                then case back
+                     of x :: back' => doSplit (n - 1, x :: front, back')
+                      | [] => raise Subscript
+                else (List.rev front, back)
+        in doSplit (n, [], xs)
         end
 
     fun maxi compare coll =
@@ -31,61 +31,102 @@ signature MONO_QUEUE = sig
 
     val empty: queue
     val pushBack: queue * item -> queue
-    val popFront: queue -> queue * item option
+
+    val popFront: queue -> (queue * item) option
 end
 
-signature TARDY_BANKERS_QUEUE_CONFIG = sig
-    type item
-    val backRetainCount: int
-end
+signature MONO_DEQUE = sig
+    include MONO_QUEUE
 
-functor TardyBankersQueue (Config : TARDY_BANKERS_QUEUE_CONFIG) :> sig
-    include MONO_QUEUE where
-        type item = Config.item
-
-    val length: queue -> int
     val pushFront: queue * item -> queue
-    val tryPopBack: queue -> queue * item option
-end = struct
-    type item = Config.item
 
-    type queue = { front: item list
-                 , back: item list
-                 , length: int }
+    val popBack: queue -> (queue * item) option
+end
 
-    val length: queue -> int = #length
+signature LENGTHY_LIST = sig
+    type 'a list = { list: 'a List.list
+                   , length: int }
 
-    val empty = {front = [], back = [], length = 0}
+    val empty: 'a list
+    val pushFront: 'a list * 'a -> 'a list
+    val popFront: 'a list -> ('a list * 'a) option
 
-    fun pushFront ({front, back, length}, x) = {front = x :: front, back, length = length + 1}
+    val append: 'a list * 'a list -> 'a list
+    val split: int * 'a list -> 'a list * 'a list
+    val rev: 'a list -> 'a list
+end
 
-    fun pushBack ({front, back, length}, x) = {front, back = x :: back, length = length + 1}
+structure LengthyList :> LENGTHY_LIST = struct
+    type 'a list = { list: 'a List.list
+                   , length: int }
 
-    fun ensureFront (queue as {front, back, length}) =
-        if not (List.null front)
-        then queue
-        else let fun loop front (back as x :: back') n =
-                     if n > 0
-                     then loop (x :: front) back' (n - 1)
-                     else {front, back, length}
-                   | loop _ _ _ = raise Fail "unreachable"
-                 val transferCount = if length > Config.backRetainCount
-                                     then length - Config.backRetainCount
-                                     else length
-             in loop front back transferCount
-             end
+    val empty = {list = [], length = 0}
 
-    fun popFront queue =
-        let val {front, back, length} = ensureFront queue
-        in case front
-           of [] => (queue, NONE)
-            | x :: front' => ({front = front', back, length = length - 1}, SOME x)
+    fun pushFront ({list, length}, x) = {list = x :: list, length = length + 1}
+
+    val popFront =
+        fn {list = [], ...} => NONE
+         | {list = x :: xs, length} => SOME ({list = xs, length = length - 1}, x)
+
+    fun append (xs: 'a list, ys: 'a list) =
+        { list = #list xs @ #list ys
+        , length = #length xs + #length ys }
+
+    fun split (n, {list, length}) =
+        let val (front, back) = Util.split (n, list)
+        in ( {list = front, length = n}
+           , {list = back, length = length - n} )
         end
 
-    val tryPopBack =
-        fn {front, back = x :: back', length} =>
-            ({front, back = back', length = length - 1}, SOME x)
-         | queue => (queue, NONE)
+    fun rev {list, length} = {list = List.rev list, length}
+end
+
+signature BANKERS_DEQUE_CONFIG = sig
+    type item 
+    val proportion: int
+end
+
+functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> MONO_DEQUE where type item = Config.item
+= struct
+    type item = Config.item
+    val proportion = Config.proportion
+    structure LL = LengthyList
+
+    type queue = { front: item LL.list
+                 , back: item LL.list }
+
+    fun reSplit (xs, ys) =
+        let val xsLength' = (#length xs + #length ys) div 2
+            val (xs', zs) = LL.split (xsLength', xs)
+        in (xs', LL.append (ys, LL.rev zs))
+        end
+
+    fun balance (deque as {front, back}) =
+        if #length front > proportion * #length back + 1
+        then let val (front, back) = reSplit (front, back)
+             in {front, back}
+             end
+        else if #length back > proportion * #length front + 1
+        then let val (back, front) = reSplit (back, front)
+             in {front, back}
+             end
+        else deque 
+
+    val empty = {front = LL.empty, back = LL.empty}
+    
+    fun pushFront ({front, back}, x) = balance {front = LL.pushFront (front, x), back}
+
+    fun pushBack ({front, back}, x) = balance {front, back = LL.pushFront (back, x)}
+
+    fun popFront {front, back} =
+        case LL.popFront front
+        of SOME (front', x) => SOME (balance {front = front', back}, x)
+         | NONE => Option.map (fn (_, x) => (empty, x)) (LL.popFront back)
+
+    fun popBack {front, back} =
+        case LL.popFront back
+        of SOME (back', x) => SOME (balance {front, back = back'}, x)
+         | NONE => Option.map (fn (_, x) => (empty, x)) (LL.popFront front)
 end
 
 structure Marbles :> sig
@@ -100,9 +141,9 @@ end = struct
         val initial: t
         val turn: t -> marble -> t * marble option
     end = struct
-        structure Impl = TardyBankersQueue(struct
+        structure Impl = BankersDeque(struct
             type item = marble
-            val backRetainCount = 7
+            val proportion = 1
         end)
 
         type t = Impl.queue
@@ -111,8 +152,8 @@ end = struct
 
         fun reEnqueue queue =
             case Impl.popFront queue
-            of (queue, SOME x) => Impl.pushBack (queue, x)
-             | (queue, NONE) => queue
+            of SOME (queue, x) => Impl.pushBack (queue, x)
+             | NONE => queue
 
         fun insert circle marble =
             let val circle = reEnqueue (reEnqueue circle)
@@ -120,81 +161,19 @@ end = struct
             end
 
         fun revReEnqueue queue =
-            case Impl.tryPopBack queue
-            of (queue, SOME x) => Impl.pushFront (queue, x)
-             | (queue, NONE) => queue
+            case Impl.popBack queue
+            of SOME (queue, x) => Impl.pushFront (queue, x)
+             | NONE => queue
 
         fun acquire circle =
             let fun loop circle n =
                     if n > 0
                     then loop (revReEnqueue circle) (n - 1)
                     else circle
-            in case Impl.tryPopBack (loop circle 6)
-               of (circle, SOME prize) => (circle, prize)
-                | _ => raise Fail "unreachable"
+            in case Impl.popBack (loop circle 6)
+               of SOME (circle, prize) => (circle, prize)
+                | NONE => raise Fail "unreachable"
             end
-
-        fun turn circle marbleToInsert =
-            if Int.rem (marbleToInsert, 23) <> 0
-            then (insert circle marbleToInsert, NONE)
-            else let val (circle', prizeMarble) = acquire circle
-                 in (circle', SOME prizeMarble)
-                 end
-    end
-
-    structure Circle :> sig
-        type t
-
-        val initial: t
-        val turn: t -> marble -> t * marble option
-    end = struct
-        val op rem = Int.rem
-
-        type t = { left: marble list
-                 , current: marble
-                 , right: marble list }
-
-        val initial = { left = []
-                      , current = 0
-                      , right = [] }
-
-        fun ensureRight (circle as {left, current, right}) =
-            case right
-            of [] =>
-                (case Util.split (left, 7)
-                 of SOME (left', revRight') =>
-                     { left = left'
-                     , current = current
-                     , right = List.rev revRight' }
-                  | NONE =>
-                     { left = []
-                     , current = current
-                     , right = List.rev left })
-             | _ => circle
-
-        fun insert (circle as {left, current, right}) marbleToInsert =
-            let val {left, current, right} = ensureRight circle
-            in case right
-               of r :: rs =>
-                   { left = r :: current :: left
-                   , current = marbleToInsert
-                   , right = rs }
-                | [] =>
-                   if marbleToInsert = 1
-                   then { left = current :: left
-                        , current = marbleToInsert
-                        , right = right }
-                   else raise Fail "unreachable"
-            end
-
-        fun acquire {left, current, right} =
-            case Util.split (left, 5)
-            of SOME (xs, current' :: prize :: left') =>
-                ( { left = left'
-                  , current = current'
-                  , right = List.revAppend (xs, right) }
-                , prize )
-             | _ => raise Fail "unreachable"
 
         fun turn circle marbleToInsert =
             if Int.rem (marbleToInsert, 23) <> 0
