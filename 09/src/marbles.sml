@@ -56,7 +56,7 @@ end = struct
 
     fun maxi compare coll =
         let val rec step =
-                fn (i, v, acc as SOME (oldMaxIndex, oldMax)) =>
+                fn (i, v, acc as SOME (_, oldMax)) =>
                     (case compare (v, oldMax)
                      of LESS => acc
                       | EQUAL => SOME (NONE, oldMax)
@@ -170,8 +170,13 @@ functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> MONO_DEQUE where type ite
          | NONE => Option.map (fn (_, x) => (empty, x)) (LL.popFront front)
 end
 
-structure Marbles :> sig
-    val main: string list -> unit
+structure GameState :> sig
+    type marble = int
+    type t
+
+    val initial: int -> t
+    val turn: marble * t -> t
+    val points: t -> int vector
 end = struct
     type player = int
     type marble = int
@@ -219,85 +224,37 @@ end = struct
                  end
     end
 
-    structure GameState :> sig
-        type t = { points: int vector
-                 , currentPlayer: player
-                 , circle: Circle.t }
+    type t = { points: int vector
+             , currentPlayer: player
+             , circle: Circle.t }
 
-        val initial: int -> int -> t
-        val turn: marble * t -> t
-    end = struct
-        type t = { points: int vector
-                 , currentPlayer: player
-                 , circle: Circle.t }
+    fun initial playerCount =
+        { points = Vector.tabulate (playerCount, fn _ => 0)
+        , currentPlayer = 0
+        , circle = Circle.initial }
 
-        fun initial playerCount marbleCount =
-            { points = Vector.tabulate (playerCount, fn _ => 0)
-            , currentPlayer = 0
-            , circle = Circle.initial }
-
-        fun nextPlayer playerCount currentPlayer =
-            let val nextPlayer = currentPlayer + 1
-            in if nextPlayer < playerCount
-               then nextPlayer
-               else 0
-            end
-
-        fun turn (marbleToInsert, {points, currentPlayer, circle}) =
-            case Circle.turn (marbleToInsert, circle)
-            of (circle', SOME prizeMarble) =>
-                { points = let val currentPlayerPoints = Vector.sub (points, currentPlayer)
-                               val currentPlayerPoints' = currentPlayerPoints
-                                                        + marbleToInsert
-                                                        + prizeMarble
-                           in Vector.update (points, currentPlayer, currentPlayerPoints')
-                           end
-                , currentPlayer = nextPlayer (Vector.length points) currentPlayer
-                , circle = circle' }
-             | (circle', NONE) =>
-               { points = points
-               , currentPlayer = nextPlayer (Vector.length points) currentPlayer
-               , circle = circle' }
-    end
-
-    fun play playerCount marbleCount =
-        let val initialState = GameState.initial playerCount marbleCount
-        in if playerCount < 1
-           then initialState
-           else IntRange.foldl GameState.turn initialState {start = 1, stop = marbleCount + 1}
+    fun nextPlayer playerCount currentPlayer =
+        let val nextPlayer = currentPlayer + 1
+        in if nextPlayer < playerCount
+           then nextPlayer
+           else 0
         end
 
-    fun printErr s = TextIO.output (TextIO.stdErr, s)
+    fun turn (marbleToInsert, {points, currentPlayer, circle}) =
+        case Circle.turn (marbleToInsert, circle)
+        of (circle', SOME prizeMarble) =>
+            { points = let val currentPlayerPoints = Vector.sub (points, currentPlayer)
+                           val currentPlayerPoints' = currentPlayerPoints
+                                                    + marbleToInsert
+                                                    + prizeMarble
+                       in Vector.update (points, currentPlayer, currentPlayerPoints')
+                       end
+            , currentPlayer = nextPlayer (Vector.length points) currentPlayer
+            , circle = circle' }
+         | (circle', NONE) =>
+           { points = points
+           , currentPlayer = nextPlayer (Vector.length points) currentPlayer
+           , circle = circle' }
 
-    fun printArgCountError argc =
-        printErr ("Error: expected 2 arguments, got " ^ Int.toString argc ^ ".\n")
-
-    val main =
-        fn [] => printArgCountError 0
-         | [_] => printArgCountError 1
-         | [playerCountStr, marbleCountStr] =>
-            (case Int.fromString playerCountStr
-             of SOME playerCount =>
-                 (case Int.fromString marbleCountStr
-                  of SOME marbleCount =>
-                      let val finalPoints = #points (play playerCount marbleCount)
-                          fun pointsLine (player, points) =
-                              "Player " ^ Int.toString player
-                                ^ " has " ^ Int.toString points ^ " points.\n"
-                      in Vector.app print (Vector.mapi pointsLine finalPoints)
-                       ; print "\n"
-                       ; case Util.maxi Int.compare finalPoints
-                         of SOME (SOME winner, winnerPoints) =>
-                             print ("The winner is player " ^ Int.toString (winner + 1)
-                                      ^ " with " ^ Int.toString winnerPoints ^ " points.\n")
-                          | SOME (NONE, maxPoints) =>
-                             print ("There no clear winner, max points was "
-                                      ^ Int.toString maxPoints ^ ".\n")
-                          | NONE => print "There were no players.\n"
-                      end
-                   | NONE => printErr ("Non-integral marble count: " ^ marbleCountStr ^ ".\n"))
-              | NONE => printErr ("Non-integral player count: " ^ playerCountStr ^ ".\n"))
-         | args => printArgCountError (List.length args)
+    val points: t -> int vector = #points
 end
-
-val () = Marbles.main (CommandLine.arguments ())

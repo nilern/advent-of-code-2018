@@ -1,6 +1,7 @@
-marbles: marbles.sml
-	mlton -default-ann "allowSuccessorML true" marbles.sml
+marbles: src/marbles.sml
+	mkdir -p target
+	mlton -output target/marbles src/marbles.mlb
 
 .PHONY: clean
 clean:
-	rm marbles
+	rm -r target

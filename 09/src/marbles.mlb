@@ -1,0 +1,13 @@
+local
+    $(SML_LIB)/basis/basis.mlb
+in
+    ann "warnUnused true"
+    in ann "allowSuccessorML true"
+       in local
+              marbles.sml
+          in
+              main.sml
+          end
+       end
+    end
+end
