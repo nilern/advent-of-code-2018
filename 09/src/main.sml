@@ -2,10 +2,10 @@ structure Main :> sig
     val main: string list -> unit
 end = struct
     fun play playerCount marbleCount =
-        let val initialState = GameState.initial playerCount
+        let val initialState = MarblesGame.initial playerCount
         in if playerCount < 1
            then initialState
-           else IntRange.foldl GameState.turn initialState {start = 1, stop = marbleCount + 1}
+           else IntRange.foldl MarblesGame.turn initialState {start = 1, stop = marbleCount + 1}
         end
 
     fun printErr s = TextIO.output (TextIO.stdErr, s)
@@ -19,7 +19,7 @@ end = struct
              of SOME playerCount =>
                  (case Int.fromString marbleCountStr
                   of SOME marbleCount =>
-                      let val finalPoints = GameState.points (play playerCount marbleCount)
+                      let val finalPoints = MarblesGame.points (play playerCount marbleCount)
                           fun pointsLine (player, points) =
                               "Player " ^ Int.toString player
                                 ^ " has " ^ Int.toString points ^ " points.\n"

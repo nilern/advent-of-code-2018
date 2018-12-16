@@ -4,6 +4,8 @@ in
     ann "warnUnused true"
     in ann "allowSuccessorML true"
        in local
+              util.sml
+              queues.sml
               marbles.sml
           in
               main.sml
