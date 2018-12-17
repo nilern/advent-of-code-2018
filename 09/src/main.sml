@@ -1,11 +1,16 @@
 structure Main :> sig
     val main: string list -> unit
 end = struct
+    structure Game = MarblesGame(Circle(BankersDeque(struct
+        structure LengthyList = LengthyConsList
+        val proportion = 1
+    end)))
+
     fun play playerCount marbleCount =
-        let val initialState = MarblesGame.initial playerCount
+        let val initialState = Game.initial playerCount
         in if playerCount < 1
            then initialState
-           else IntRange.foldl MarblesGame.turn initialState {start = 1, stop = marbleCount + 1}
+           else IntRange.foldl Game.turn initialState {start = 1, stop = marbleCount + 1}
         end
 
     fun printErr s = TextIO.output (TextIO.stdErr, s)
@@ -19,7 +24,7 @@ end = struct
              of SOME playerCount =>
                  (case Int.fromString marbleCountStr
                   of SOME marbleCount =>
-                      let val finalPoints = MarblesGame.points (play playerCount marbleCount)
+                      let val finalPoints = Game.points (play playerCount marbleCount)
                           fun pointsLine (player, points) =
                               "Player " ^ Int.toString player
                                 ^ " has " ^ Int.toString points ^ " points.\n"

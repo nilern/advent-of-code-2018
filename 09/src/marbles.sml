@@ -1,5 +1,5 @@
 signature CIRCLE = sig
-    type marble
+    type marble = int
     type t
 
     val initial: t
@@ -15,48 +15,46 @@ signature MARBLES_GAME = sig
     val points: t -> int vector
 end
 
-structure MarblesGame :> MARBLES_GAME = struct
+functor Circle (Impl: DEQUE) :> CIRCLE = struct
+    type marble = int
+    type t = marble Impl.queue
+
+    val initial = Impl.pushBack (Impl.empty, 0)
+
+    fun reEnqueue queue =
+        case Impl.popFront queue
+        of SOME (queue, x) => Impl.pushBack (queue, x)
+         | NONE => queue
+
+    fun revReEnqueue queue =
+        case Impl.popBack queue
+        of SOME (queue, x) => Impl.pushFront (queue, x)
+         | NONE => queue
+
+    fun insert circle marble =
+        let val circle = reEnqueue (reEnqueue circle)
+        in Impl.pushFront (circle, marble)
+        end
+
+    fun acquire circle =
+        case Impl.popBack (IntRange.foldl (revReEnqueue o #2) circle (IntRange.to 6))
+        of SOME (circle, prize) => (circle, prize)
+         | NONE => raise Fail "unreachable"
+
+    datatype marble_action = INSERT | ACQUIRE
+
+    fun marbleAction marbleToInsert =
+        if Int.rem (marbleToInsert, 23) = 0 then ACQUIRE else INSERT
+
+    fun turn (marbleToInsert, circle) =
+        case marbleAction marbleToInsert
+        of INSERT => (insert circle marbleToInsert, NONE)
+         | ACQUIRE => Pair.second SOME (acquire circle)
+end
+
+functor MarblesGame (Circle: CIRCLE) :> MARBLES_GAME = struct
     type player = int
     type marble = int
-
-    structure Circle :> CIRCLE where type marble = marble = struct
-        structure Impl = BankersDeque(struct
-            type item = marble
-            val proportion = 1
-        end)
-
-        type marble = marble
-        type t = Impl.queue
-
-        val initial = Impl.pushBack (Impl.empty, 0)
-
-        fun reEnqueue queue =
-            case Impl.popFront queue
-            of SOME (queue, x) => Impl.pushBack (queue, x)
-             | NONE => queue
-
-        fun insert circle marble =
-            let val circle = reEnqueue (reEnqueue circle)
-            in Impl.pushFront (circle, marble)
-            end
-
-        fun revReEnqueue queue =
-            case Impl.popBack queue
-            of SOME (queue, x) => Impl.pushFront (queue, x)
-             | NONE => queue
-
-        fun acquire circle =
-            case Impl.popBack (IntRange.foldl (revReEnqueue o #2) circle (IntRange.to 6))
-            of SOME (circle, prize) => (circle, prize)
-             | NONE => raise Fail "unreachable"
-
-        fun turn (marbleToInsert, circle) =
-            if Int.rem (marbleToInsert, 23) <> 0
-            then (insert circle marbleToInsert, NONE)
-            else let val (circle', prizeMarble) = acquire circle
-                 in (circle', SOME prizeMarble)
-                 end
-    end
 
     type t = { points: int vector
              , currentPlayer: player

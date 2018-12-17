@@ -4,10 +4,18 @@ end = struct
     fun const c _ = c
 end
 
-structure Pair :> sig
-    val map: ('a -> 'c) -> 'a * 'b -> 'c * 'b
-end = struct
-    fun map f (l, r) = (f l, r)
+signature BIFUNCTOR = sig
+    type ('a, 'b) t
+
+    val first: ('a -> 'c) -> ('a, 'b) t -> ('c, 'b) t
+    val second: ('b -> 'c) -> ('a, 'b) t -> ('a, 'c) t
+end
+
+structure Pair :> BIFUNCTOR where type ('a, 'b) t = 'a * 'b = struct
+    type ('a, 'b) t = 'a * 'b
+
+    fun first f (l, r) = (f l, r)
+    fun second f (l, r) = (l, f r)
 end
 
 signature RANGEABLE = sig
@@ -28,7 +36,7 @@ signature RANGE = sig
     val foldl: (index * 'a -> 'a) -> 'a -> range -> 'a
 end
 
-functor Range(Index: RANGEABLE) :> RANGE where type index = Index.index = struct
+functor Range (Index: RANGEABLE) :> RANGE where type index = Index.index = struct
     type index = Index.index
     type range = { start: index
                  , stop: index }
@@ -91,7 +99,7 @@ signature LENGTHY_LIST = sig
     val rev: 'a list -> 'a list
 end
 
-structure LengthyList :> LENGTHY_LIST = struct
+structure LengthyConsList :> LENGTHY_LIST = struct
     type 'a list = { list: 'a List.list
                    , length: int }
 

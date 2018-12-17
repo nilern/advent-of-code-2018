@@ -1,34 +1,29 @@
-signature MONO_QUEUE = sig
-    type queue
-    type item
+signature QUEUE = sig
+    type 'a queue
 
-    val empty: queue
-    val pushBack: queue * item -> queue
-
-    val popFront: queue -> (queue * item) option
+    val empty: 'a queue
+    val pushBack: 'a queue * 'a -> 'a queue
+    val popFront: 'a queue -> ('a queue * 'a) option
 end
 
-signature MONO_DEQUE = sig
-    include MONO_QUEUE
+signature DEQUE = sig
+    include QUEUE
 
-    val pushFront: queue * item -> queue
-
-    val popBack: queue -> (queue * item) option
+    val pushFront: 'a queue * 'a -> 'a queue
+    val popBack: 'a queue -> ('a queue * 'a) option
 end
 
 signature BANKERS_DEQUE_CONFIG = sig
-    type item 
+    structure LengthyList: LENGTHY_LIST
     val proportion: int
 end
 
-functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> MONO_DEQUE where type item = Config.item
-= struct
-    type item = Config.item
+functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> DEQUE = struct
+    structure LL = Config.LengthyList
     val proportion = Config.proportion
-    structure LL = LengthyList
 
-    type queue = { front: item LL.list
-                 , back: item LL.list }
+    type 'a queue = { front: 'a LL.list
+                    , back: 'a LL.list }
 
     fun reSplit (xs, ys) =
         let val xsLength' = (#length xs + #length ys) div 2
@@ -56,10 +51,10 @@ functor BankersDeque (Config: BANKERS_DEQUE_CONFIG) :> MONO_DEQUE where type ite
     fun popFront {front, back} =
         case LL.popFront front
         of SOME (front', x) => SOME (balance {front = front', back}, x)
-         | NONE => Option.map (Pair.map (Fn.const empty)) (LL.popFront back)
+         | NONE => Option.map (Pair.first (Fn.const empty)) (LL.popFront back)
 
     fun popBack {front, back} =
         case LL.popFront back
         of SOME (back', x) => SOME (balance {front, back = back'}, x)
-         | NONE => Option.map (Pair.map (Fn.const empty)) (LL.popFront front)
+         | NONE => Option.map (Pair.first (Fn.const empty)) (LL.popFront front)
 end
