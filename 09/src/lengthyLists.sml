@@ -1,6 +1,7 @@
 (* A list whose length can be computed in O(1). *)
 signature LENGTHY_LIST = sig
-    type 'a list = { list: 'a List.list
+    type 'a impl_list
+    type 'a list = { list: 'a impl_list
                    , length: int }
 
     val empty: 'a list
@@ -14,7 +15,8 @@ end
 
 (* A LENGTHY_LIST that wraps a standard cons list. *)
 structure LengthyConsList :> LENGTHY_LIST = struct
-    type 'a list = { list: 'a List.list
+    type 'a impl_list = 'a List.list
+    type 'a list = { list: 'a impl_list
                    , length: int }
 
     val empty = {list = [], length = 0}
