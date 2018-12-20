@@ -18,7 +18,8 @@ end
 (* Parameters for BankersDeque. *)
 signature BANKERS_DEQUE_CONFIG = sig
     (* The list module to use. Cons lists give good performance in 'single-timeline' use cases
-       but risk quadratic behaviour if persistence is required. *)
+       but risk quadratic behaviour if persistence is required. The amortization can be recovered
+       in that case by using streams = lazy lists = lazy seq:s instead. *)
     structure LengthyList: LENGTHY_LIST
     (* Limit for the ratio of front and back queue lengths. *)
     val proportion: int

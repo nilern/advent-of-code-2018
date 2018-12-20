@@ -3,11 +3,22 @@ structure Main :> sig
     val main: string list -> unit
 end = struct
     (* This elegant and somehow amusing module expression injects dependencies and puts together
-       our main Game module. And MLton guarantees this to have zero runtime overhead! *)
-    structure Game = MarblesGame(Circle(BankersDeque(struct
-        structure LengthyList = LengthyConsList
-        val proportion = 1
-    end)))
+       our fancy layered architecture. And MLton guarantees this to have zero runtime overhead! *)
+    structure Game = MarblesGame(Circle(struct
+        structure Impl = BankersDeque(struct
+            (* We don't need persistence, so a simple cons list is best: *)
+            structure LengthyList = LengthyConsList
+            (* One would be a good default, but bigger seems to be faster. Finding the optimum
+               would probably take some analysis that isn't very relevant for the task at hand. *)
+            val proportion = 2
+        end)
+
+        structure Consts = struct
+            val valuableFactor = 23
+            val insertionIndex = 2
+            val prizeIndex = 7
+        end
+    end))
 
     (* Run through the game non-interactively. *)
     fun play playerCount marbleCount =

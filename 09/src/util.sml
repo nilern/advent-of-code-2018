@@ -10,18 +10,17 @@ end
 
 (* Like the Data.Bifunctor of Haskell, not to be confused with ML module functors. *)
 signature BIFUNCTOR = sig
-    (* The Bifunctor type. *)
-    type ('a, 'b) t
+    type ('a, 'b) bifunctor
 
     (* Map over the first component. *)
-    val first: ('a -> 'c) -> ('a, 'b) t -> ('c, 'b) t
+    val first: ('a -> 'c) -> ('a, 'b) bifunctor -> ('c, 'b) bifunctor
     (* Map over the second component. *)
-    val second: ('b -> 'c) -> ('a, 'b) t -> ('a, 'c) t
+    val second: ('b -> 'c) -> ('a, 'b) bifunctor -> ('a, 'c) bifunctor
 end
 
 (* Utilities for pairs (two-element tuples). *)
-structure Pair :> BIFUNCTOR where type ('a, 'b) t = 'a * 'b = struct
-    type ('a, 'b) t = 'a * 'b
+structure Pair :> BIFUNCTOR where type ('a, 'b) bifunctor = 'a * 'b = struct
+    type ('a, 'b) bifunctor = 'a * 'b
 
     fun first f (l, r) = (f l, r)
     fun second f (l, r) = (l, f r)
@@ -34,7 +33,7 @@ signature RANGEABLE = sig
     val compare: index * index -> order
 
     val zero: index
-    val inc: index -> index
+    val increment: index -> index
 end
 
 signature RANGE = sig
@@ -59,7 +58,7 @@ functor Range (Index: RANGEABLE) :> RANGE where type index = Index.index = struc
     fun foldl f v {start, stop} =
         let fun loop i v =
                 case Index.compare (i, stop)
-                of LESS => loop (Index.inc i) (f (i, v))
+                of LESS => loop (Index.increment i) (f (i, v))
                  | _ => v
         in loop start v
         end
@@ -72,11 +71,11 @@ structure IntRange = Range(struct
     val compare = Int.compare
 
     val zero = 0
-    val inc = fn n => n + 1
+    val increment = fn n => n + 1
 end)
 
 structure Util :> sig
-    (* Split a list at the given index. Essentially (take n xs, drop n xs) (but faster). *)
+    (* Split a list at the given index. Essentially `(take n xs, drop n xs)` (but faster). *)
     val split: int * 'a list -> 'a list * 'a list
 
     (* Find the maximum value and its index (if unambiguous) of a vector (if nonempty). *)
