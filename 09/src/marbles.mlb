@@ -5,6 +5,7 @@ in
     in ann "allowSuccessorML true"
        in local
               util.sml
+              lengthyLists.sml
               queues.sml
               marbles.sml
           in
