@@ -1,3 +1,6 @@
+(* ML Basis files can be used to compose modules into libraries and programs,
+   just like modules are composed from values and types. *)
+
 local
     $(SML_LIB)/basis/basis.mlb
 in

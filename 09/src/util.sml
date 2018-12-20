@@ -1,16 +1,25 @@
+(* The SML standard library lacks many of the conveniences found in e.g. Haskell or Clojure,
+   but it is simple to define our own. *)
+
 structure Fn :> sig
+    (* Given a value of type 'a, return a function that always returns that value. *)
     val const: 'a -> 'b -> 'a
 end = struct
     fun const c _ = c
 end
 
+(* Like the Data.Bifunctor of Haskell, not to be confused with ML module functors. *)
 signature BIFUNCTOR = sig
+    (* The Bifunctor type. *)
     type ('a, 'b) t
 
+    (* Map over the first component. *)
     val first: ('a -> 'c) -> ('a, 'b) t -> ('c, 'b) t
+    (* Map over the second component. *)
     val second: ('b -> 'c) -> ('a, 'b) t -> ('a, 'c) t
 end
 
+(* Utilities for pairs (two-element tuples). *)
 structure Pair :> BIFUNCTOR where type ('a, 'b) t = 'a * 'b = struct
     type ('a, 'b) t = 'a * 'b
 
@@ -18,6 +27,7 @@ structure Pair :> BIFUNCTOR where type ('a, 'b) t = 'a * 'b = struct
     fun second f (l, r) = (l, f r)
 end
 
+(* A type whose values can be RANGEd over. *)
 signature RANGEABLE = sig
     type index
 
@@ -29,13 +39,16 @@ end
 
 signature RANGE = sig
     type index
+    (* A range from start inclusice to stop exclusive. *)
     type range = {start: index, stop: index}
 
+    (* A range from the index zero upto the given index. *)
     val to: index -> range
 
     val foldl: (index * 'a -> 'a) -> 'a -> range -> 'a
 end
 
+(* Generic RANGE module parameterized over a RANGEABLE module. *)
 functor Range (Index: RANGEABLE) :> RANGE where type index = Index.index = struct
     type index = Index.index
     type range = { start: index
@@ -52,6 +65,7 @@ functor Range (Index: RANGEABLE) :> RANGE where type index = Index.index = struc
         end
 end
 
+(* A RANGE over int. *)
 structure IntRange = Range(struct
     type index = Int.int
 
@@ -62,8 +76,10 @@ structure IntRange = Range(struct
 end)
 
 structure Util :> sig
+    (* Split a list at the given index. Essentially (take n xs, drop n xs) (but faster). *)
     val split: int * 'a list -> 'a list * 'a list
 
+    (* Find the maximum value and its index (if unambiguous) of a vector (if nonempty). *)
     val maxi: ('a * 'a -> order) -> 'a vector -> (int option * 'a) option
 end = struct
     fun split (n, xs) =

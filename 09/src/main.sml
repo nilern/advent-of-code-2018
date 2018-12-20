@@ -1,11 +1,15 @@
 structure Main :> sig
+    (* Entry point. There's nothing special about Main.main but I like C-style entry points. *)
     val main: string list -> unit
 end = struct
+    (* This elegant and somehow amusing module expression injects dependencies and puts together
+       our main Game module. And MLton guarantees this to have zero runtime overhead! *)
     structure Game = MarblesGame(Circle(BankersDeque(struct
         structure LengthyList = LengthyConsList
         val proportion = 1
     end)))
 
+    (* Run through the game non-interactively. *)
     fun play playerCount marbleCount =
         let val initialState = Game.initial playerCount
         in if playerCount < 1
@@ -44,4 +48,7 @@ end = struct
          | args => printArgCountError (List.length args)
 end
 
+(* Since there is nothing special about the entry point, it needs to be called manually, kind of
+   like in a scripting language (which ML orginally was; the MetaLanguage of the Edinburgh LCF
+   theorem prover). *)
 val () = Main.main (CommandLine.arguments ())
